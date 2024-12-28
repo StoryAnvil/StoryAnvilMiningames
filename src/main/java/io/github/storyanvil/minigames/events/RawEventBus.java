@@ -56,28 +56,13 @@ public class RawEventBus {
                                                                             int teamsNumber = IntegerArgumentType.getInteger(context, "teams");
                                                                             Collection<CommandFunction> onSuccess = FunctionArgument.getFunctions(context, "success");
                                                                             Collection<CommandFunction> onFailure = FunctionArgument.getFunctions(context, "failure");
-                                                                            int maxPlayers = maxPlayersPerTeam * teamsNumber;
-                                                                            List<String> teams = new ArrayList<>(List.of(Arrays.copyOfRange(StoryUtils.TEAMS, 0, teamsNumber - 1)));
-                                                                            ArrayList<Integer> _players = new ArrayList<>(Collections.nCopies(teamsNumber, 0));
-
-                                                                            if (players.size() < minPlayers) {
-                                                                                StoryUtils.runAsFunctions(server, context.getSource(), onFailure);
-                                                                                return 1;
-                                                                            }
-
-                                                                            Collections.shuffle(players);
-                                                                            for (ServerPlayer player : players) {
-                                                                                if (maxPlayers == 0) {
-                                                                                    StoryUtils.joinTeam(server, player.getScoreboardName(), StoryUtils.TEAM_SPECTATORS);
-                                                                                    continue;
-                                                                                }
-                                                                                int team = MiniGames.random.nextInt(teams.size());
-                                                                                StoryUtils.joinTeam(server, player.getScoreboardName(), teams.get(team));
-                                                                                maxPlayers--;
-                                                                                _players.set(team, _players.get(team) + 1);
-                                                                                if (_players.get(team) == maxPlayersPerTeam) {
-                                                                                    _players.remove(team);
-                                                                                    teams.remove(team);
+                                                                            String[] teams = Arrays.copyOfRange(StoryUtils.TEAMS, 0, teamsNumber - 1);
+                                                                            int seats = maxPlayersPerTeam * teamsNumber;
+                                                                            if (seats > players.size()) seats = players.size();
+                                                                            Collections.shuffle(players, MiniGames.random);
+                                                                            for (int i = 0; i < seats; i++) {
+                                                                                for (String team : teams) {
+                                                                                    StoryUtils.joinTeam(server, players.get(seats).getScoreboardName(), team);
                                                                                 }
                                                                             }
                                                                             StoryUtils.runAsFunctions(server, context.getSource(), onSuccess);
