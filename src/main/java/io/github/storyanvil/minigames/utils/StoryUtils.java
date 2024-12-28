@@ -20,7 +20,7 @@ public class StoryUtils {
     public static final String TEAM_BLUE = "BLUE";
     public static final String TEAM_YELLOW = "YELLOW";
     public static final String TEAM_SPECTATORS = "SPECTATORS";
-    public static final String[] TEAMS = new String[]{TEAM_RED, TEAM_BLUE, TEAM_YELLOW, TEAM_BLUE};
+    public static final String[] TEAMS = new String[]{TEAM_RED, TEAM_BLUE, TEAM_YELLOW, TEAM_GREEN};
     public static void setDataScore(MinecraftServer server, String key, int value) {
         Scoreboard scoreboard = server.getScoreboard();
         Score score = scoreboard.getOrCreatePlayerScore(key, scoreboard.getObjective("story"));

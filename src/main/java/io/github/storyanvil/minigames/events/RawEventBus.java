@@ -17,6 +17,8 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
 
+import static io.github.storyanvil.minigames.MiniGames.LOGGER;
+
 @Mod.EventBusSubscriber(modid = MiniGames.MODID)
 public class RawEventBus {
     @SubscribeEvent
@@ -24,13 +26,13 @@ public class RawEventBus {
         event.getDispatcher().register(Commands.literal("storyanvil").requires(css -> css.hasPermission(2))
                 .then(Commands.literal("log")
                         .then(Commands.argument("msg", StringArgumentType.string()).executes(context -> {
-                            MiniGames.LOGGER.info(StringArgumentType.getString(context, "msg"));
+                            LOGGER.info(StringArgumentType.getString(context, "msg"));
                             return 0;
                         }))
                 )
                 .then(Commands.literal("log_error")
                         .then(Commands.argument("msg", StringArgumentType.string()).executes(context -> {
-                            MiniGames.LOGGER.error(StringArgumentType.getString(context, "msg"));
+                            LOGGER.error(StringArgumentType.getString(context, "msg"));
                             return 0;
                         }))
                 )
@@ -56,14 +58,30 @@ public class RawEventBus {
                                                                             int teamsNumber = IntegerArgumentType.getInteger(context, "teams");
                                                                             Collection<CommandFunction> onSuccess = FunctionArgument.getFunctions(context, "success");
                                                                             Collection<CommandFunction> onFailure = FunctionArgument.getFunctions(context, "failure");
-                                                                            String[] teams = Arrays.copyOfRange(StoryUtils.TEAMS, 0, teamsNumber - 1);
+                                                                            String[] teams = Arrays.copyOfRange(StoryUtils.TEAMS, 0, teamsNumber);
+
+                                                                            LOGGER.info(Arrays.toString(teams));
+
+                                                                            if (players.size() < minPlayers) {
+                                                                                LOGGER.info("Failed!");
+                                                                                StoryUtils.runAsFunctions(server, context.getSource(), onFailure);
+                                                                                return 1;
+                                                                            }
+
                                                                             int seats = maxPlayersPerTeam * teamsNumber;
                                                                             if (seats > players.size()) seats = players.size();
                                                                             Collections.shuffle(players, MiniGames.random);
+                                                                            int team = 0;
                                                                             for (int i = 0; i < seats; i++) {
-                                                                                for (String team : teams) {
-                                                                                    StoryUtils.joinTeam(server, players.get(seats).getScoreboardName(), team);
+                                                                                StoryUtils.joinTeam(server, players.get(i).getScoreboardName(), teams[team]);
+                                                                                LOGGER.info(players.get(i).getScoreboardName() + " in " + teams[team]);
+                                                                                team++;
+                                                                                if (team > teamsNumber) {
+                                                                                    team = 0;
                                                                                 }
+                                                                            }
+                                                                            for (int i = seats; i < players.size(); i++) {
+                                                                                StoryUtils.joinTeam(server, players.get(i).getScoreboardName(), StoryUtils.TEAM_SPECTATORS);
                                                                             }
                                                                             StoryUtils.runAsFunctions(server, context.getSource(), onSuccess);
                                                                             return 0;
@@ -73,6 +91,18 @@ public class RawEventBus {
                                                 )
                                         )
                                 )
+                        )
+                )
+                .then(Commands.literal("unpack")
+                        .then(Commands.argument("cmd", StringArgumentType.string())
+                                .executes(context -> {
+                                    MinecraftServer server = context.getSource().getServer();
+                                    String[] commands = StringArgumentType.getString(context, "cmd").split("\\\\;");
+                                    for (String command : commands) {
+                                        StoryUtils.runAs(server, context.getSource(), command);
+                                    }
+                                    return 0;
+                                })
                         )
                 )
         );
