@@ -1,14 +1,19 @@
 package io.github.storyanvil.minigames.utils;
 
 import io.github.storyanvil.minigames.MiniGames;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandFunction;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.Score;
 import net.minecraft.world.scores.Scoreboard;
 
+import java.awt.*;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -50,5 +55,8 @@ public class StoryUtils {
         for (CommandFunction function : functions) {
             server.getFunctions().execute(function, stack);
         }
+    }
+    public static void mimicWhisper(Component from, Component text, Player player) {
+        player.sendSystemMessage(Component.translatable("commands.message.display.incoming", from, text).withStyle(style -> style.withColor(TextColor.fromLegacyFormat(ChatFormatting.GRAY)).withItalic(true)));
     }
 }

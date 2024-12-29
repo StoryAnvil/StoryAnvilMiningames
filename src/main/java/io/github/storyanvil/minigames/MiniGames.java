@@ -30,6 +30,8 @@ import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.registries.RegistryObject;
 import org.slf4j.Logger;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Random;
 
 @Mod(MiniGames.MODID)
@@ -38,6 +40,7 @@ public class MiniGames
     public static final String MODID = "storyanvil_mg";
     public static final Logger LOGGER = LogUtils.getLogger();
     public static final Random random = new Random();
+    public static final ArrayList<ShopItem> shop = new ArrayList<>();
     public MiniGames()
     {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
