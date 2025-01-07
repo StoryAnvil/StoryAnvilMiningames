@@ -9,9 +9,12 @@ import net.minecraft.network.chat.TextColor;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.scores.Score;
 import net.minecraft.world.scores.Scoreboard;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.CapabilityManager;
 
 import java.awt.*;
 import java.util.Collection;
@@ -40,8 +43,8 @@ public class StoryUtils {
         Scoreboard scoreboard = server.getScoreboard();
         scoreboard.addPlayerToTeam(player, scoreboard.getPlayerTeam(team));
     }
-    public static void runAs(MinecraftServer server, CommandSourceStack source, String command) {
-        server.getCommands().performPrefixedCommand(source, command);
+    public static void runAs(CommandSourceStack source, String command) {
+        source.getServer().getCommands().performPrefixedCommand(source, command);
     }
     public static void runAsFunction(MinecraftServer server, CommandSourceStack source, ResourceLocation functionLocation) {
         Optional<CommandFunction> function = server.getFunctions().get(functionLocation);
@@ -58,5 +61,14 @@ public class StoryUtils {
     }
     public static void mimicWhisper(Component from, Component text, Player player) {
         player.sendSystemMessage(Component.translatable("commands.message.display.incoming", from, text).withStyle(style -> style.withColor(TextColor.fromLegacyFormat(ChatFormatting.GRAY)).withItalic(true)));
+    }
+    public static void mayFly(ServerPlayer player, boolean may) {
+        player.getAbilities().mayfly = may;
+    }
+    public static void mayTakeNoDamage(ServerPlayer player, boolean may) {
+        player.getAbilities().invulnerable = may;
+    }
+    public static void mayInstabuild(ServerPlayer player, boolean may) {
+        player.getAbilities().instabuild = may;
     }
 }

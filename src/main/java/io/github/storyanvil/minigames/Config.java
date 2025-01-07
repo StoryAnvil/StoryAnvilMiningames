@@ -1,37 +1,27 @@
 package io.github.storyanvil.minigames;
 
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-// An example config class. This is not required, but it's a good idea to have one to keep your config organized.
-// Demonstrates how to use Forge's config APIs
 @Mod.EventBusSubscriber(modid = MiniGames.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class Config
 {
     private static final ForgeConfigSpec.Builder BUILDER = new ForgeConfigSpec.Builder();
-    static final ForgeConfigSpec SPEC = BUILDER.build();
-    public static boolean logDirtBlock;
-    public static int magicNumber;
-    public static String magicNumberIntroduction;
-    public static Set<Item> items;
+    public static final ForgeConfigSpec.ConfigValue<Integer> ___G000_001_WORD_COUNT = BUILDER
+            .comment("Defines word count for G000_001")
+            .define("G000_001_WORD_COUNT", 50);
+    private static int G000_001_WORD_COUNT = 50;
 
-    private static boolean validateItemName(final Object obj)
-    {
-        return obj instanceof final String itemName && ForgeRegistries.ITEMS.containsKey(new ResourceLocation(itemName));
-    }
+    private static final ForgeConfigSpec SPEC = BUILDER.build();
 
     @SubscribeEvent
-    static void onLoad(final ModConfigEvent event)
-    {
+    public static void onLoad(final ModConfigEvent event) {
+        G000_001_WORD_COUNT = ___G000_001_WORD_COUNT.get();
+    }
 
+    public static int G000_001_WordCount() {
+        return G000_001_WORD_COUNT;
     }
 }

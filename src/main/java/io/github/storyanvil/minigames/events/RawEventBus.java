@@ -1,5 +1,6 @@
 package io.github.storyanvil.minigames.events;
 
+import com.mojang.brigadier.arguments.BoolArgumentType;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import io.github.storyanvil.minigames.MiniGames;
@@ -16,12 +17,15 @@ import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.commands.arguments.item.ItemInput;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.commands.ExecuteCommand;
 import net.minecraft.server.commands.GiveCommand;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.scores.Score;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraftforge.event.RegisterCommandsEvent;
+import net.minecraftforge.event.server.ServerStartingEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.checkerframework.checker.units.qual.C;
@@ -32,6 +36,7 @@ import java.util.Collection;
 import java.util.Collections;
 
 import static io.github.storyanvil.minigames.MiniGames.LOGGER;
+import static io.github.storyanvil.minigames.scripts.MiniGamesScripts.shared;
 
 @Mod.EventBusSubscriber(modid = MiniGames.MODID)
 public class RawEventBus {
@@ -128,14 +133,15 @@ public class RawEventBus {
                                     MinecraftServer server = context.getSource().getServer();
                                     String[] commands = StringArgumentType.getString(context, "cmd").split("\\\\;");
                                     for (String command : commands) {
-                                        StoryUtils.runAs(server, context.getSource(), command);
+                                        StoryUtils.runAs(context.getSource(), command);
                                     }
                                     return 0;
                                 })
                         )
                 )
                 .then(Commands.literal("script")
-                        .then(Commands.literal("000_001_randomize_word").executes(MiniGamesScripts::g000_001_randomize_word))
+                        .then(Commands.literal("000_001_randomize_word").executes(c -> shared(MiniGamesScripts::g000_001_randomize_word, c)))
+                        .then(Commands.literal("000_007_pre").executes(c ->            shared(MiniGamesScripts::g000_007_pre, c)))
                 )
                 .then(Commands.literal("whisper")
                         .then(Commands.argument("from", StringArgumentType.string())
@@ -180,6 +186,72 @@ public class RawEventBus {
                                             player.sendSystemMessage(Component.translatable("story.storyanvil.shopItem", String.valueOf(item.price), item.name).withStyle(style -> style.withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/storyclient shop " + id))));
                                             return 0;
                                         })
+                                )
+                        )
+                )
+                .then(Commands.literal("G")
+                        .then(Commands.literal("registerStartup") // On game start
+                                .then(Commands.argument("id", IntegerArgumentType.integer(1))
+                                        .then(Commands.argument("command", StringArgumentType.string())
+                                                .executes(context -> {
+                                                    int id = IntegerArgumentType.getInteger(context, "id");
+                                                    String ifStarted = StringArgumentType.getString(context, "command");
+                                                    MinecraftServer server = context.getSource().getServer();
+                                                    // check so no game running same time
+                                                    if (StoryUtils.getDataScore(server, "_") != 0) {
+                                                        context.getSource().sendSystemMessage(Component.translatable("story.storyanvil.game_already_running"));
+                                                        return 1;
+                                                    }
+                                                    StoryUtils.setDataScore(server, "_", id);
+                                                    StoryUtils.runAs(context.getSource(), ifStarted);
+                                                    LOGGER.info("Game " + id + " started!");
+                                                    return 0;
+                                                })
+                                        )
+                                )
+                        )
+                        .then(Commands.literal("registerEnd") // On game end
+                                .executes(context -> {
+                                    MinecraftServer server = context.getSource().getServer();
+                                    StoryUtils.setDataScore(server, "_", 0);
+                                    server.getPlayerList().getPlayers().forEach(player -> {
+                                        StoryUtils.mayFly(player, false);
+                                    });
+                                    StoryUtils.runAsFunction(server, context.getSource(), ResourceLocation.tryParse("storyanvil:game/spawn"));
+                                    LOGGER.info("Game stopped!");
+                                    return 0;
+                                })
+                        )
+                )
+                .then(Commands.literal("P")
+                        .then(Commands.argument("players", EntityArgument.players())
+                                .then(Commands.literal("p")
+                                        .then(Commands.argument("may", BoolArgumentType.bool())
+                                                .then(Commands.literal("fly")
+                                                        .executes(context -> {
+                                                            EntityArgument.getPlayers(context, "players").forEach(serverPlayer -> {
+                                                                StoryUtils.mayFly(serverPlayer, BoolArgumentType.getBool(context, "may"));
+                                                            });
+                                                            return 0;
+                                                        })
+                                                )
+                                                .then(Commands.literal("god")
+                                                        .executes(context -> {
+                                                            EntityArgument.getPlayers(context, "players").forEach(serverPlayer -> {
+                                                                StoryUtils.mayTakeNoDamage(serverPlayer, BoolArgumentType.getBool(context, "may"));
+                                                            });
+                                                            return 0;
+                                                        })
+                                                )
+                                                .then(Commands.literal("instabuild")
+                                                        .executes(context -> {
+                                                            EntityArgument.getPlayers(context, "players").forEach(serverPlayer -> {
+                                                                StoryUtils.mayInstabuild(serverPlayer, BoolArgumentType.getBool(context, "may"));
+                                                            });
+                                                            return 0;
+                                                        })
+                                                )
+                                        )
                                 )
                         )
                 )
