@@ -14,7 +14,7 @@ public class Config
             .define("G000_001_WORD_COUNT", 50);
     private static int G000_001_WORD_COUNT = 50;
 
-    private static final ForgeConfigSpec SPEC = BUILDER.build();
+    public static final ForgeConfigSpec SPEC = BUILDER.build();
 
     @SubscribeEvent
     public static void onLoad(final ModConfigEvent event) {

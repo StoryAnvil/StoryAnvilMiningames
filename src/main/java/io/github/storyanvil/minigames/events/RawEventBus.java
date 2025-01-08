@@ -6,36 +6,37 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import io.github.storyanvil.minigames.MiniGames;
 import io.github.storyanvil.minigames.ShopItem;
 import io.github.storyanvil.minigames.scripts.MiniGamesScripts;
+import io.github.storyanvil.minigames.utils.BigArrays;
 import io.github.storyanvil.minigames.utils.StoryUtils;
 import net.minecraft.commands.CommandFunction;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.arguments.ComponentArgument;
-import net.minecraft.commands.arguments.CompoundTagArgument;
 import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.item.FunctionArgument;
 import net.minecraft.commands.arguments.item.ItemArgument;
 import net.minecraft.commands.arguments.item.ItemInput;
+import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.commands.ExecuteCommand;
-import net.minecraft.server.commands.GiveCommand;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.scores.Score;
 import net.minecraft.world.scores.Scoreboard;
 import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.server.ServerStartingEvent;
+import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.fml.common.Mod;
-import org.checkerframework.checker.units.qual.C;
+import net.minecraftforge.registries.ForgeRegistries;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
+import java.util.*;
 
 import static io.github.storyanvil.minigames.MiniGames.LOGGER;
+import static io.github.storyanvil.minigames.scripts.MiniGamesScripts.quiet;
 import static io.github.storyanvil.minigames.scripts.MiniGamesScripts.shared;
 
 @Mod.EventBusSubscriber(modid = MiniGames.MODID)
@@ -142,6 +143,7 @@ public class RawEventBus {
                 .then(Commands.literal("script")
                         .then(Commands.literal("000_001_randomize_word").executes(c -> shared(MiniGamesScripts::g000_001_randomize_word, c)))
                         .then(Commands.literal("000_007_pre").executes(c ->            shared(MiniGamesScripts::g000_007_pre, c)))
+                        .then(Commands.literal("000_007_state_1").executes(c ->         quiet(MiniGamesScripts::g000_007_state_1, c)))
                 )
                 .then(Commands.literal("whisper")
                         .then(Commands.argument("from", StringArgumentType.string())
@@ -212,13 +214,7 @@ public class RawEventBus {
                         )
                         .then(Commands.literal("registerEnd") // On game end
                                 .executes(context -> {
-                                    MinecraftServer server = context.getSource().getServer();
-                                    StoryUtils.setDataScore(server, "_", 0);
-                                    server.getPlayerList().getPlayers().forEach(player -> {
-                                        StoryUtils.mayFly(player, false);
-                                    });
-                                    StoryUtils.runAsFunction(server, context.getSource(), ResourceLocation.tryParse("storyanvil:game/spawn"));
-                                    LOGGER.info("Game stopped!");
+                                    MiniGamesScripts.registerEnd(context.getSource().getServer(), context.getSource());
                                     return 0;
                                 })
                         )
@@ -258,4 +254,105 @@ public class RawEventBus {
         );
     }
 
+    @SubscribeEvent
+    public static void onPlayerInteractWithBlock(PlayerInteractEvent.RightClickBlock event) {
+        if (event.getSide() == LogicalSide.CLIENT) return;
+
+        MinecraftServer server = event.getLevel().getServer();
+        if (StoryUtils.ifGame(server, 7)) {
+            BlockState block = event.getLevel().getBlockState(event.getPos());
+            if (Objects.equals(ForgeRegistries.BLOCKS.getKey(block.getBlock()), new ResourceLocation("minecraft", "spruce_trapdoor"))) {
+                boolean isSecondPlayer = event.getPos().getX() == 15030 || event.getPos().getX() == 15032 || event.getPos().getX() == 15034;
+                assert server != null;
+                boolean isOpen = block.getValue(BlockStateProperties.OPEN);
+                StoryUtils.setScoreboard(server, "g000_007",
+                        (isSecondPlayer ?
+                                "P2_" + StoryUtils.backFindPos(BigArrays.player2pos, event.getPos().below()) :
+                                "P1_" + StoryUtils.backFindPos(BigArrays.player1pos, event.getPos().below())),
+                        isOpen ? 1 : 0);
+                int state =  StoryUtils.getScoreboard(server, "g000_007", "state");
+                if (state == 0) {
+                    event.setCanceled(true);
+                    event.getLevel().setBlock(isSecondPlayer ? new BlockPos(15013, -53, 292) : new BlockPos(15011, -53, 292), event.getLevel().getBlockState(event.getPos().below()), 2);
+                    server.getPlayerList().broadcastSystemMessage(isSecondPlayer ? Component.translatable("story.storyanvil.g000_007_p2_selected") : Component.translatable("story.storyanvil.g000_007_p1_selected"), true);
+                    if (!event.getLevel().getBlockState(!isSecondPlayer ? new BlockPos(15013, -53, 292) : new BlockPos(15011, -53, 292)).isAir()) {
+                        // If both players selected block
+                        BlockState bsP1 = event.getLevel().getBlockState(new BlockPos(15011, -53, 294));
+                        BlockState bsP2 = event.getLevel().getBlockState(new BlockPos(15013, -53, 294));
+                        for (int i = 0; i < 15; i++) {
+                            event.getLevel().setBlock(BigArrays.player1pos.get(i).above(), bsP1, 2);
+                            event.getLevel().setBlock(BigArrays.player2pos.get(i).above(), bsP2, 2);
+                        }
+                        MiniGamesScripts.g000_007_state_1(null, server, event.getLevel());
+                    }
+                } else if (state == 1) {
+                    boolean won = false;
+                    boolean cause = false;
+                    if (!isSecondPlayer) {
+                        if (StoryUtils.addScoreboard(server, "g000_007", "p1Left", isOpen ? -1 : 1) == 1) {
+                            cause = true;
+                            for (Integer i : BigArrays.player1pos.keySet()) {
+                                BlockPos bp = BigArrays.player1pos.get(i).above();
+                                BlockState bs = event.getLevel().getBlockState(bp);
+                                if (bs.getValue(BlockStateProperties.OPEN)) {
+                                    BlockState bs2 = event.getLevel().getBlockState(new BlockPos(15013, -53, 292));
+                                    BlockState bs3 = event.getLevel().getBlockState(bp.below());
+                                    won = bs3.equals(bs2);
+                                    break;
+                                }
+                            }
+                        }
+                    } else {
+                        if (StoryUtils.addScoreboard(server, "g000_007", "p2Left", isOpen ? -1 : 1) == 1) {
+                            cause = true;
+                            for (Integer i : BigArrays.player2pos.keySet()) {
+                                BlockPos bp = BigArrays.player2pos.get(i).above();
+                                BlockState bs = event.getLevel().getBlockState(bp);
+                                if (bs.getValue(BlockStateProperties.OPEN)) {
+                                    BlockState bs2 = event.getLevel().getBlockState(new BlockPos(15011, -53, 292));
+                                    BlockState bs3 = event.getLevel().getBlockState(bp.below());
+                                    won = !bs3.equals(bs2);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (cause) {
+                        event.setCanceled(true);
+                        if (won) { // Player 1 won
+                            server.getPlayerList().broadcastSystemMessage(Component.translatable("g000_007_p1_won"), true);
+                        } else {
+                            server.getPlayerList().broadcastSystemMessage(Component.translatable("g000_007_p2_won"), true);
+                        }
+                        for (Integer i : BigArrays.player1pos.keySet()) {
+                            BlockPos bp = BigArrays.player1pos.get(i);
+                            BlockState bs = event.getLevel().getBlockState(bp);
+                            BlockState bs2 = event.getLevel().getBlockState(new BlockPos(15011, -53, 292));
+                            if (bs.equals(bs2)) {
+                                event.getLevel().setBlock(bp.above(), won ? Blocks.DIAMOND_BLOCK.defaultBlockState() : Blocks.GOLD_BLOCK.defaultBlockState(), 2);
+                            } else {
+                                event.getLevel().setBlock(bp.above(), Blocks.AIR.defaultBlockState(), 2);
+                                event.getLevel().setBlock(bp, Blocks.AIR.defaultBlockState(), 2);
+                            }
+                        }
+                        for (Integer i : BigArrays.player2pos.keySet()) {
+                            BlockPos bp = BigArrays.player2pos.get(i);
+                            BlockState bs = event.getLevel().getBlockState(bp);
+                            BlockState bs2 = event.getLevel().getBlockState(new BlockPos(15013, -53, 292));
+                            if (bs.equals(bs2)) {
+                                event.getLevel().setBlock(bp.above(), !won ? Blocks.DIAMOND_BLOCK.defaultBlockState() : Blocks.GOLD_BLOCK.defaultBlockState(), 2);
+                            } else {
+                                event.getLevel().setBlock(bp.above(), Blocks.AIR.defaultBlockState(), 2);
+                                event.getLevel().setBlock(bp, Blocks.AIR.defaultBlockState(), 2);
+                            }
+                        }
+                        StoryUtils.setScoreboard(server, "g000_007", "state", -1);
+                        MiniGames.queueServerWork(20 * 10, () -> {
+                            MiniGamesScripts.registerEnd(server, StoryUtils.s(server, (ServerLevel) event.getLevel()));
+                        });
+                    }
+                }
+            }
+        }
+    }
 }

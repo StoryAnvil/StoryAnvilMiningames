@@ -7,20 +7,23 @@ import io.github.storyanvil.minigames.utils.BigArrays;
 import io.github.storyanvil.minigames.utils.StoryUtils;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Holder;
+import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.server.commands.SetBlockCommand;
+import net.minecraft.server.commands.TitleCommand;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.Level;
-import net.minecraft.world.level.LevelAccessor;
-import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
+import net.minecraft.world.scores.Objective;
+import net.minecraft.world.scores.criteria.ObjectiveCriteria;
 import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.Collections;
-import java.util.Optional;
+
+import static io.github.storyanvil.minigames.MiniGames.LOGGER;
 
 public class MiniGamesScripts {
     public interface SharedScript {
@@ -29,6 +32,10 @@ public class MiniGamesScripts {
     public static int shared(SharedScript script, CommandContext<CommandSourceStack> context) {
         MinecraftServer server = context.getSource().getServer();
         return script.execute(context, server, context.getSource().getLevel());
+    }
+    public static int quiet(SharedScript script, CommandContext<CommandSourceStack> context) {
+        MinecraftServer server = context.getSource().getServer();
+        return script.execute(null, server, context.getSource().getLevel());
     }
     public static int g000_001_randomize_word(CommandContext<CommandSourceStack> context, MinecraftServer server, Level level) {
         // Generate id of random word
@@ -44,26 +51,59 @@ public class MiniGamesScripts {
         }
         return 0;
     }
-    private static void setBoth(Level level, int x1, int y1, int z1, int x2, int y2, int z2, String block) {
+    private static void setBoth(Level level, BlockPos p1, BlockPos p2, String block) {
         BlockState b = ForgeRegistries.BLOCKS.getDelegate(ResourceLocation.tryParse(block)).get().get().defaultBlockState();
 
-        level.setBlock(BlockPos.containing(x1, y1, z1), b, 2);
-        level.setBlock(BlockPos.containing(x2, y2, z2), b, 2);
+        level.setBlock(p1, b, 2);
+        level.setBlock(p2, b, 2);
+    }
+    private static void setBoth(Level level, BlockPos p1, BlockPos p2, BlockState block) {
+        level.setBlock(p1, block, 2);
+        level.setBlock(p2, block, 2);
     }
     public static int g000_007_pre(CommandContext<CommandSourceStack> context, MinecraftServer server, Level level) {
-        Collections.shuffle(BigArrays.blocks, MiniGames.random);
+        // Prepare the scoreboard
+        StoryUtils.removeObjective(server, "g000_007");
+        Objective objective = StoryUtils.createObjective(server, "g000_007", ObjectiveCriteria.DUMMY);
+        StoryUtils.setScoreboard(objective, "state", 0);
 
-        setBoth(level, 15024, -53, 272, 15030, -53, 280, BigArrays.blocks.get(0));
-        setBoth(level, 15024, -53, 274, 15030, -53, 278, BigArrays.blocks.get(1));
-        setBoth(level, 15024, -53, 276, 15030, -53, 276, BigArrays.blocks.get(2));
-        setBoth(level, 15024, -53, 278, 15030, -53, 274, BigArrays.blocks.get(3));
-        setBoth(level, 15024, -53, 280, 15030, -53, 272, BigArrays.blocks.get(4));
-        setBoth(level, 15022, -53, 272, 15032, -53, 280, BigArrays.blocks.get(5));
-        setBoth(level, 15022, -53, 274, 15032, -53, 278, BigArrays.blocks.get(6));
-        setBoth(level, 15022, -53, 276, 15032, -53, 276, BigArrays.blocks.get(7));
-        setBoth(level, 15022, -53, 278, 15032, -53, 274, BigArrays.blocks.get(8));
-        setBoth(level, 15022, -53, 280, 15032, -53, 272, BigArrays.blocks.get(9));
+
+        // Prepare the blocks
+        setBoth(level, new BlockPos(15011, -53, 292), new BlockPos(15013, -53, 292), Blocks.AIR.defaultBlockState());
+
+        Collections.shuffle(BigArrays.guessableBlocks, MiniGames.random);
+
+        BlockState bsP1 = level.getBlockState(new BlockPos(15011, -53, 294));
+        BlockState bsP2 = level.getBlockState(new BlockPos(15013, -53, 294));
+        for (int i = 0; i < 15; i++) {
+            setBoth(level, BigArrays.player1pos.get(i), BigArrays.player2pos.get(i), BigArrays.guessableBlocks.get(i));
+            level.setBlock(BigArrays.player1pos.get(i).above(), bsP1, 2);
+            level.setBlock(BigArrays.player2pos.get(i).above(), bsP2, 2);
+        }
 
         return 0;
+    }
+
+    public static int g000_007_state_1(CommandContext<CommandSourceStack> __NULL__, MinecraftServer server, Level level) {
+        Objective objective = server.getScoreboard().getObjective("g000_007");
+        assert objective != null;
+        StoryUtils.setScoreboard(objective, "state", 1);
+        StoryUtils.setScoreboard(objective, "p1Left", BigArrays.player1pos.size());
+        StoryUtils.setScoreboard(objective, "p2Left", BigArrays.player2pos.size());
+        for (ServerPlayer player : server.getPlayerList().getPlayers()) {
+            StoryUtils.sendTitle(player, Component.translatable("story.storyanvil.g000_007_p1_question"));
+        }
+        return 0;
+    }
+
+
+
+    public static void registerEnd(MinecraftServer server, CommandSourceStack context) {
+        StoryUtils.setDataScore(server, "_", 0);
+        server.getPlayerList().getPlayers().forEach(player -> {
+            StoryUtils.mayFly(player, false);
+        });
+        StoryUtils.runAsFunction(server, context, ResourceLocation.tryParse("storyanvil:game/spawn"));
+        LOGGER.info("Game stopped!");
     }
 }
